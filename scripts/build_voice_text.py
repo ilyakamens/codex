@@ -16,7 +16,8 @@ manifest = source / "codex-package.json"
 metadata = json.loads(manifest.read_text())
 workspace = tomllib.loads((repo / "codex-rs/Cargo.toml").read_text())
 version = workspace["workspace"]["package"]["version"]
-if metadata["version"] != version:
+# Upstream main uses 0.0.0; only release builds have a matching package version.
+if version != "0.0.0" and metadata["version"] != version:
     raise SystemExit(f"Expected the installed Codex {version} voice runtime, got {metadata['version']}.")
 
 voice_host = source / "codex-resources/voice/bin/codex-voice-host"
@@ -36,12 +37,17 @@ subprocess.run(
 
 destination = repo / "codex-rs/target/voice-text-output"
 (destination / "bin").mkdir(parents=True, exist_ok=True)
-shutil.copy2(repo / "codex-rs/target/debug/codex", destination / "bin/codex")
+binary = destination / "bin/codex"
+# Fresh files avoid stale macOS code signatures when rebuilding executables.
+binary.unlink(missing_ok=True)
+shutil.copy2(repo / "codex-rs/target/debug/codex", binary)
 shutil.copy2(manifest, destination / manifest.name)
 resources = destination / "codex-resources"
 if resources.is_symlink():
     resources.unlink()
-shutil.copytree(source / "codex-resources", resources, dirs_exist_ok=True)
+elif resources.exists():
+    shutil.rmtree(resources)
+shutil.copytree(source / "codex-resources", resources)
 for name in ("codex-path", "bin/codex-code-mode-host"):
     target = source / name
     target.resolve(strict=True)

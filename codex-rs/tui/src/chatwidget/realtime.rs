@@ -297,11 +297,6 @@ impl ChatWidget {
             return;
         }
 
-        if !self.config.features.enabled(Feature::RealtimeConversation) {
-            self.add_error_message("Voice conversations are not enabled.".to_string());
-            return;
-        }
-
         if !RealtimeWebrtcSession::is_supported() {
             self.add_error_message(
                 "Voice requires macOS, an MSVC-based Windows build, or a glibc-based Linux build."

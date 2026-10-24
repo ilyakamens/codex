@@ -56,8 +56,9 @@ Use `/voice` as usual. The microphone remains active while Codex streams normal
 text replies without speaker playback. This also applies to progress updates
 and saved conversation history.
 
-The local package uses the voice runtime and helpers from an installed Codex
-0.163.0 release. It does not replace the installed CLI. The feature can also be
+The local package copies the voice runtime from the installed Codex release and
+runs without the shared background server. It does not replace the installed CLI.
+Release branches require the matching installed version. The feature can also be
 enabled with `--enable voice_text_output` or `features.voice_text_output = true`.
 Run `pnpm test:voice` for the voice regression tests.
 
