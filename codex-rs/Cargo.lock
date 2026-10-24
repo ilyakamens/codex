@@ -4398,6 +4398,7 @@ dependencies = [
  "codex-utils-template",
  "pretty_assertions",
  "tracing",
+ "whoami 1.6.1",
 ]
 
 [[package]]
@@ -4970,6 +4971,7 @@ dependencies = [
  "codex-models-manager",
  "codex-otel",
  "codex-plugin",
+ "codex-prompts",
  "codex-protocol",
  "codex-protocol-test-support",
  "codex-realtime-webrtc",

@@ -181,8 +181,8 @@ async fn check_remote_voice_start(
     let starts = recorded_params(&requests, "thread/realtime/start");
     assert_eq!(starts.len(), 1);
     let start = &starts[0];
+    assert!(start["delegationAckFiller"].is_null());
     if text_output {
-        assert_eq!(start["delegationAckFiller"], false);
         assert!(
             start["realtimeStartInstructions"]
                 .as_str()
@@ -193,10 +193,9 @@ async fn check_remote_voice_start(
             start["prompt"]
                 .as_str()
                 .unwrap()
-                .contains("Delegate every user request")
+                .contains("For every user utterance, immediately delegate")
         );
     } else {
-        assert!(start["delegationAckFiller"].is_null());
         assert!(start["realtimeStartInstructions"].is_null());
         assert!(start["prompt"].is_null());
     }

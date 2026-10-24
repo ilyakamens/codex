@@ -62,6 +62,13 @@ Release branches require the matching installed version. The feature can also be
 enabled with `--enable voice_text_output` or `features.voice_text_output = true`.
 Run `pnpm test:voice` for the voice regression tests.
 
+On macOS, `pnpm test:voice:e2e` tests a spoken request through the real CLI,
+microphone, service, backend agent, and terminal. It requires `uv`, an existing
+Codex login, and audible built-in speakers. It plays two generated questions in one session and checks each transcription,
+delegation, completed backend reply, and visible answer.
+Use `--normal` to compare ordinary voice mode. Artifacts are saved under
+`codex-rs/target/voice-e2e/`.
+
 ## Tracing / verbose logging
 
 Codex is written in Rust, so it honors the `RUST_LOG` environment variable to configure its logging behavior.

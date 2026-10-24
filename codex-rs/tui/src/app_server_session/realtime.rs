@@ -9,6 +9,7 @@ use codex_app_server_protocol::ThreadRealtimeStartResponse;
 use codex_app_server_protocol::ThreadRealtimeStartTransport;
 use codex_app_server_protocol::ThreadRealtimeStopParams;
 use codex_app_server_protocol::ThreadRealtimeStopResponse;
+use codex_prompts::default_realtime_backend_prompt;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::RealtimeConversationVersion;
 use codex_protocol::protocol::RealtimeOutputModality;
@@ -33,7 +34,7 @@ impl AppServerSession {
                 params: ThreadRealtimeStartParams {
                     thread_id: thread_id.to_string(),
                     client_managed_handoffs: Some(true),
-                    delegation_ack_filler: text_output.then_some(false),
+                    delegation_ack_filler: None,
                     flush_transcript_tail_on_session_end: None,
                     codex_responses_as_items: None,
                     codex_response_item_prefix: None,
@@ -53,11 +54,14 @@ impl AppServerSession {
                     }),
                     realtime_end_instructions: None,
                     prompt: text_output.then(|| {
-                        Some("You provide voice input for Codex. Delegate every user request to the backend, \
-                         including questions and conversation, preserving the user's words. \
-                         The user reads the backend's replies directly in the terminal. \
-                         Do not answer requests yourself or speak acknowledgments or results."
-                            .to_string())
+                        Some(format!(
+                            "{}\n\n## Text output mode\n\n\
+                             For every user utterance, immediately delegate the request to the backend. \
+                             This includes simple questions, arithmetic, greetings, and conversation. \
+                             The backend answers the user in the terminal. Your job is to pass on the \
+                             request, even if you already know the answer.",
+                            default_realtime_backend_prompt()
+                        ))
                     }),
                     realtime_session_id: None,
                     voice_session_id: None,
