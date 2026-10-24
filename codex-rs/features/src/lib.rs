@@ -416,6 +416,8 @@ pub enum Feature {
     StepModelSwitching,
     /// Enable voice conversations in the TUI.
     RealtimeConversation,
+    /// Keep voice input while displaying normal text replies instead of speech.
+    VoiceTextOutput,
     /// Prevent idle system sleep while a turn is actively running.
     PreventIdleSleep,
     /// Removed compatibility key, still advertised to the Responses API.
@@ -1993,6 +1995,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "realtime_conversation",
         stage: Stage::Stable,
         default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::VoiceTextOutput,
+        key: "voice_text_output",
+        stage: Stage::Stable,
+        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::RemoteControl,

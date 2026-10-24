@@ -122,11 +122,12 @@ impl App {
         &mut self,
         thread_id: ThreadId,
     ) -> Option<(mpsc::Receiver<ThreadBufferedEvent>, ThreadEventSnapshot)> {
+        let voice_text_output = self.chat_widget.voice_text_output_enabled();
         let channel = self.thread_event_channels.get_mut(&thread_id)?;
         let receiver = channel.receiver.take()?;
         let mut store = channel.store.lock().await;
         store.active = true;
-        let snapshot = store.snapshot();
+        let snapshot = store.snapshot_with_voice_text_output(voice_text_output);
         Some((receiver, snapshot))
     }
 
@@ -982,6 +983,7 @@ impl App {
                         String::from(offer_sdp.clone()),
                         model,
                         voice,
+                        self.chat_widget.voice_text_output_enabled(),
                     )
                     .await?;
                 Ok(true)

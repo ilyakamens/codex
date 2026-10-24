@@ -67,7 +67,7 @@ impl ChatWidget {
             .is_some();
         self.realtime_conversation.speaker_suppression_generation = None;
         if let Some(handle) = self.realtime_conversation.handle.as_ref() {
-            handle.set_speaker_suppressed(/*suppressed*/ false);
+            handle.set_speaker_suppressed(self.voice_text_output_enabled());
         }
         if acknowledged {
             self.update_realtime_footer();
@@ -176,6 +176,11 @@ impl ChatWidget {
         self.realtime_conversation.next_audio_meter_sample_at =
             Some(now + MICROPHONE_METER_INTERVAL);
         let (microphone_peak, speaker_peak) = take_peaks();
+        let speaker_peak = if self.voice_text_output_enabled() {
+            0
+        } else {
+            speaker_peak
+        };
         let microphone_peak = if self.realtime_conversation.microphone_muted {
             0
         } else {

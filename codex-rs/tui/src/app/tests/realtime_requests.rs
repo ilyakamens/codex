@@ -93,14 +93,25 @@ async fn remote_voice_start_routes_v3_offer_and_effective_preference() -> Result
         (HistoryCapabilities::VoiceCatalogCustom, Some("maple")),
         (HistoryCapabilities::ConfigReadUnknownVoice, None),
     ] {
-        check_remote_voice_start(capabilities, expected_voice).await?;
+        check_remote_voice_start(capabilities, expected_voice, /*text_output*/ false).await?;
     }
     Ok(())
+}
+
+#[tokio::test]
+async fn voice_text_output_start_preserves_audio_input_and_requests_normal_replies() -> Result<()> {
+    check_remote_voice_start(
+        super::session_lifecycle_requests::HistoryCapabilities::Current,
+        Some("juniper"),
+        /*text_output*/ true,
+    )
+    .await
 }
 
 async fn check_remote_voice_start(
     capabilities: super::session_lifecycle_requests::HistoryCapabilities,
     expected_voice: Option<&str>,
+    text_output: bool,
 ) -> Result<()> {
     let (mut app, _events, _ops) = make_test_app_with_channels().await;
     let (mut app_server, requests, proxy) =
@@ -153,6 +164,10 @@ async fn check_remote_voice_start(
     app.config.realtime.voice = Some(codex_protocol::protocol::RealtimeVoice::Maple);
     app.chat_widget
         .on_realtime_voice_saved(codex_protocol::protocol::RealtimeVoice::Maple);
+    if text_output {
+        app.chat_widget
+            .set_feature_enabled(Feature::VoiceTextOutput, true);
+    }
     Box::pin(app.handle_event(
         &mut tui,
         &mut app_server,
@@ -166,6 +181,25 @@ async fn check_remote_voice_start(
     let starts = recorded_params(&requests, "thread/realtime/start");
     assert_eq!(starts.len(), 1);
     let start = &starts[0];
+    if text_output {
+        assert_eq!(start["delegationAckFiller"], false);
+        assert!(
+            start["realtimeStartInstructions"]
+                .as_str()
+                .unwrap()
+                .contains("respond normally")
+        );
+        assert!(
+            start["prompt"]
+                .as_str()
+                .unwrap()
+                .contains("Delegate every user request")
+        );
+    } else {
+        assert!(start["delegationAckFiller"].is_null());
+        assert!(start["realtimeStartInstructions"].is_null());
+        assert!(start["prompt"].is_null());
+    }
     assert_eq!(
         serde_json::json!({
             "threadId": start["threadId"],

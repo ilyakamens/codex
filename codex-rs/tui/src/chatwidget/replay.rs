@@ -164,7 +164,10 @@ impl ChatWidget {
                 }
                 // Voice can steer a typed turn already in progress. Its earlier
                 // commentary and reasoning still belong to the typed request.
-                if replaying_delegation && realtime::is_private_realtime_agent_item(&item) {
+                if replaying_delegation
+                    && !self.voice_text_output_enabled()
+                    && realtime::is_private_realtime_agent_item(&item)
+                {
                     continue;
                 }
                 if hidden_nested_review_turn && matches!(item, ThreadItem::UserMessage { .. }) {

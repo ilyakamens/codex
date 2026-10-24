@@ -49,6 +49,18 @@ just test
 # time and `target/` disk usage by compiling additional feature combinations.
 ```
 
+## Voice input with text replies (local fork)
+
+Run `pnpm build:voice` from the repository root, then `pnpm start:voice`.
+Use `/voice` as usual. The microphone remains active while Codex streams normal
+text replies without speaker playback. This also applies to progress updates
+and saved conversation history.
+
+The local package uses the voice runtime and helpers from an installed Codex
+0.163.0 release. It does not replace the installed CLI. The feature can also be
+enabled with `--enable voice_text_output` or `features.voice_text_output = true`.
+Run `pnpm test:voice` for the voice regression tests.
+
 ## Tracing / verbose logging
 
 Codex is written in Rust, so it honors the `RUST_LOG` environment variable to configure its logging behavior.

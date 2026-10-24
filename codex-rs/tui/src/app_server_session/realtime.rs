@@ -23,6 +23,7 @@ impl AppServerSession {
         offer_sdp: String,
         model: Option<String>,
         voice: Option<RealtimeVoice>,
+        text_output: bool,
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadRealtimeStartResponse = self
@@ -32,7 +33,7 @@ impl AppServerSession {
                 params: ThreadRealtimeStartParams {
                     thread_id: thread_id.to_string(),
                     client_managed_handoffs: Some(true),
-                    delegation_ack_filler: None,
+                    delegation_ack_filler: text_output.then_some(false),
                     flush_transcript_tail_on_session_end: None,
                     codex_responses_as_items: None,
                     codex_response_item_prefix: None,
@@ -43,9 +44,21 @@ impl AppServerSession {
                     output_modality: RealtimeOutputModality::Audio,
                     include_startup_context: Some(false),
                     initial_items: None,
-                    realtime_start_instructions: None,
+                    realtime_start_instructions: text_output.then(|| {
+                        "The user is speaking and reads your responses directly in the terminal. \
+                         Treat realtime delegation input as the user's request and respond normally, \
+                         including progress updates, Markdown, and code when appropriate. \
+                         Your responses are displayed verbatim, not spoken or summarized by an intermediary."
+                            .to_string()
+                    }),
                     realtime_end_instructions: None,
-                    prompt: None,
+                    prompt: text_output.then(|| {
+                        Some("You provide voice input for Codex. Delegate every user request to the backend, \
+                         including questions and conversation, preserving the user's words. \
+                         The user reads the backend's replies directly in the terminal. \
+                         Do not answer requests yourself or speak acknowledgments or results."
+                            .to_string())
+                    }),
                     realtime_session_id: None,
                     transport: Some(ThreadRealtimeStartTransport::Webrtc { sdp: offer_sdp }),
                     version: Some(RealtimeConversationVersion::V3),

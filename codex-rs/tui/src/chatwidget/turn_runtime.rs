@@ -213,7 +213,10 @@ impl ChatWidget {
                     .turn_lifecycle
                     .last_turn_id
                     .as_deref()
-                    .is_some_and(|turn_id| self.should_hide_realtime_delegation(turn_id))
+                    .is_some_and(|turn_id| {
+                        !self.voice_text_output_enabled()
+                            && self.should_hide_realtime_delegation(turn_id)
+                    })
             {
                 self.notify(Notification::AgentTurnComplete {
                     response: notification_response,

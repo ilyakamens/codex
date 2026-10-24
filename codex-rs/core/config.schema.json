@@ -1285,6 +1285,9 @@
             "view_image": {
               "type": "boolean"
             },
+            "voice_text_output": {
+              "type": "boolean"
+            },
             "web_search": {
               "type": "boolean"
             },
@@ -7611,6 +7614,9 @@
           "type": "boolean"
         },
         "view_image": {
+          "type": "boolean"
+        },
+        "voice_text_output": {
           "type": "boolean"
         },
         "web_search": {

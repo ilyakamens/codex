@@ -353,7 +353,15 @@ impl ThreadEventStore {
         file_change_changes(self.buffer.iter(), &self.turns, turn_id, item_id)
     }
 
+    #[cfg(test)]
     pub(super) fn snapshot(&self) -> ThreadEventSnapshot {
+        self.snapshot_with_voice_text_output(false)
+    }
+
+    pub(super) fn snapshot_with_voice_text_output(
+        &self,
+        voice_text_output: bool,
+    ) -> ThreadEventSnapshot {
         let mut snapshot = ThreadEventSnapshot {
             session: self.session.clone(),
             delegated_turns: self.delegated_turns.iter().cloned().collect(),
@@ -378,6 +386,9 @@ impl ThreadEventStore {
         };
         if let Some(latest_turn_id) = &self.latest_turn_id {
             replay_filter::omit_resolved_misalignment_errors(&mut snapshot, latest_turn_id);
+        }
+        if voice_text_output {
+            return snapshot;
         }
         let delegated = snapshot
             .turns

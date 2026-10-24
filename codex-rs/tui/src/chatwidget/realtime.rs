@@ -251,6 +251,10 @@ fn realtime_input_fingerprint(input: &str) -> (usize, u64) {
 }
 
 impl ChatWidget {
+    pub(crate) fn voice_text_output_enabled(&self) -> bool {
+        self.config.features.enabled(Feature::VoiceTextOutput)
+    }
+
     pub(crate) fn realtime_conversation_is_running(&self) -> bool {
         self.realtime_conversation.phase != RealtimeConversationPhase::Inactive
     }
@@ -434,6 +438,9 @@ impl ChatWidget {
             };
             self.on_realtime_error(message, cause);
             return;
+        }
+        if self.voice_text_output_enabled() {
+            offer.handle.set_speaker_suppressed(/*suppressed*/ true);
         }
         self.realtime_conversation.handle = Some(offer.handle);
         self.update_realtime_footer();
@@ -777,10 +784,12 @@ impl ChatWidget {
     }
 
     pub(super) fn is_realtime_delegated_reasoning_turn(&self, turn_id: &str) -> bool {
-        self.realtime_conversation
-            .delegated_reasoning_turns
-            .iter()
-            .any(|saved| saved == turn_id)
+        !self.voice_text_output_enabled()
+            && self
+                .realtime_conversation
+                .delegated_reasoning_turns
+                .iter()
+                .any(|saved| saved == turn_id)
     }
 
     pub(super) fn is_realtime_delegated_reasoning_item(
@@ -812,6 +821,9 @@ impl ChatWidget {
         turn_id: &str,
         item_id: &str,
     ) -> bool {
+        if self.voice_text_output_enabled() {
+            return false;
+        }
         if !matches!(
             self.realtime_conversation.phase,
             RealtimeConversationPhase::Starting | RealtimeConversationPhase::Active
@@ -845,6 +857,9 @@ impl ChatWidget {
         item: &ThreadItem,
         from_replay: bool,
     ) -> bool {
+        if self.voice_text_output_enabled() {
+            return false;
+        }
         let ThreadItem::AgentMessage {
             id: item_id,
             text,
@@ -936,6 +951,9 @@ impl ChatWidget {
     }
 
     pub(super) fn speak_completed_realtime_delegation(&mut self, turn_id: &str, item: &ThreadItem) {
+        if self.voice_text_output_enabled() {
+            return;
+        }
         let ThreadItem::AgentMessage {
             id: item_id, text, ..
         } = item
@@ -1272,6 +1290,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_realtime_transcript_delta(&mut self, role: String, delta: String) {
+        if self.voice_text_output_enabled() && role == "assistant" {
+            return;
+        }
         if self.realtime_conversation.phase == RealtimeConversationPhase::Inactive
             && !self.realtime_conversation.recover_late_transcripts
         {
@@ -1415,6 +1436,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_realtime_transcript_done(&mut self, role: String, mut text: String) {
+        if self.voice_text_output_enabled() && role == "assistant" {
+            return;
+        }
         if matches!(
             self.realtime_conversation.phase,
             RealtimeConversationPhase::Inactive | RealtimeConversationPhase::Stopping

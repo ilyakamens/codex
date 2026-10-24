@@ -3,6 +3,10 @@
   "private": true,
   "description": "Tools for repo-wide maintenance.",
   "scripts": {
+    "build:voice": "python3 scripts/build_voice_text.py",
+    "start:voice": "./codex-rs/target/voice-text-output/bin/codex --no-daemon --enable voice_text_output",
+    "test:voice": "cd codex-rs && CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 RUST_MIN_STACK=8388608 cargo test -p codex-tui --lib realtime",
+    "schema:config": "cd codex-rs && CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 cargo run -p codex-config-schema --bin codex-write-config-schema",
     "format": "prettier --check *.json *.md docs/*.md .github/workflows/*.yml **/*.js",
     "format:fix": "prettier --write *.json *.md docs/*.md .github/workflows/*.yml **/*.js",
     "write-hooks-schema": "cargo run --manifest-path ./codex-rs/Cargo.toml -p codex-hooks --bin write_hooks_schema_fixtures"

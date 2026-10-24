@@ -370,6 +370,40 @@ fn saved_voice_turn_suppresses_reasoning_without_hiding_typed_reasoning() {
 }
 
 #[test]
+fn realtime_voice_text_output_keeps_updates_when_switching_threads() {
+    let voice_request = ThreadItem::UserMessage {
+        id: "voice-request".into(),
+        client_id: None,
+        content: vec![codex_app_server_protocol::UserInput::Text {
+            text: "<realtime_delegation><input>question</input></realtime_delegation>".into(),
+            text_elements: Vec::new(),
+        }],
+    };
+    let update = ThreadItem::AgentMessage {
+        id: "update".into(),
+        text: "Checking the code.".into(),
+        phase: Some(codex_protocol::models::MessagePhase::Commentary),
+        questions: None,
+        memory_citation: None,
+        delivery: None,
+    };
+    let mut store = ThreadEventStore::new(/*capacity*/ 8);
+    store.set_turns(vec![test_turn(
+        "voice-turn",
+        TurnStatus::InProgress,
+        vec![voice_request, update.clone()],
+    )]);
+    store.push_notification(delta("thread", "voice-turn", "answer"));
+    let snapshot = store.snapshot_with_voice_text_output(true);
+    assert_eq!(snapshot.turns[0].items.last(), Some(&update));
+    assert!(matches!(
+        snapshot.events.last(),
+        Some(ThreadBufferedEvent::Notification(notification))
+            if matches!(notification.as_ref(), ServerNotification::AgentMessageDelta(_))
+    ));
+}
+
+#[test]
 fn snapshot_keeps_typed_output_before_voice_handoff_in_the_same_turn() {
     let commentary = |id: &str, text: &str| ThreadItem::AgentMessage {
         id: id.into(),

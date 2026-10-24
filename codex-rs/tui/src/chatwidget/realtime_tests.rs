@@ -151,5 +151,7 @@ mod handoffs;
 mod lifecycle;
 #[path = "realtime_tests/speech_recovery.rs"]
 mod speech_recovery;
+#[path = "realtime_tests/text_output.rs"]
+mod text_output;
 #[path = "realtime_tests/transcripts.rs"]
 mod transcripts;
