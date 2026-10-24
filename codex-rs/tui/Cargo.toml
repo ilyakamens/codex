@@ -64,6 +64,7 @@ codex-sandboxing = { workspace = true }
 codex-shell-command = { workspace = true }
 codex-state = { workspace = true }
 codex-terminal-detection = { workspace = true }
+codex-websocket-client = { workspace = true }
 codex-worktree = { workspace = true }
 codex-utils-approval-presets = { workspace = true }
 codex-uds = { workspace = true }
@@ -121,6 +122,7 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 tokio-stream = { workspace = true, features = ["sync"] }
+tokio-tungstenite = { workspace = true }
 toml = { workspace = true }
 toml_edit = { workspace = true }
 tracing = { workspace = true, features = ["log"] }
@@ -187,7 +189,6 @@ opentelemetry_sdk = { workspace = true }
 pretty_assertions = { workspace = true }
 rand = { workspace = true }
 serial_test = { workspace = true }
-tokio-tungstenite = { workspace = true }
 vt100 = { workspace = true }
 uuid = { workspace = true }
 wiremock = { workspace = true }

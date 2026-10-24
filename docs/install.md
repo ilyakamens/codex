@@ -52,10 +52,10 @@ just test
 ## Voice input with text replies (local fork)
 
 Run `pnpm build:voice` from the repository root, then `pnpm start:voice`.
-Use `/voice` as usual. The microphone remains active while Codex streams normal
-text replies without speaker playback. This also applies to progress updates
-and saved conversation history. Direct replies from the voice model remain
-visible as text.
+On macOS, `/voice` sends speech to OpenAI's dictation service using your
+ChatGPT login. Pausing for 1.2 seconds submits the transcript as a normal user
+message. Only the regular Codex agent generates replies. No API key is required.
+Use `/voice mute` to pause capture and `/voice stop` to stop it.
 
 The local package copies the voice runtime from the installed Codex release and
 runs without the shared background server. It does not replace the installed CLI.
@@ -66,8 +66,8 @@ Run `pnpm test:voice` for the voice regression tests.
 On macOS, `pnpm test:voice:e2e` tests a spoken request through the real CLI,
 microphone, service, backend agent, and terminal. It requires `uv`, an existing
 Codex login, and audible built-in speakers. It tests a conversational check, a
-delegated calculation, and a follow-up question in one session, verifying that
-both direct voice replies and backend results appear in the terminal.
+calculation, and a follow-up question in one session, verifying exactly one normal
+user message per utterance, visible agent replies, and no conversational voice session.
 Use `--normal` to compare ordinary voice mode. Artifacts are saved under
 `codex-rs/target/voice-e2e/`.
 Use `--check-weekly-limit` to verify a configured weekly usage footer before the

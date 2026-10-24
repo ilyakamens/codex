@@ -1246,6 +1246,12 @@ pub(crate) enum AppEvent {
         result: Result<StartedRealtimeWebrtcSession, RealtimeWebrtcStartupFailure>,
     },
 
+    Dictation {
+        thread_id: ThreadId,
+        attempt_id: u64,
+        event: crate::dictation::DictationEvent,
+    },
+
     /// Result of establishing the WebRTC connection for an active voice attempt.
     RealtimeWebrtcConnected {
         thread_id: ThreadId,

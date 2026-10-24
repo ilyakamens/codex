@@ -802,7 +802,6 @@ impl App {
                         String::from(offer_sdp.clone()),
                         model,
                         voice,
-                        self.chat_widget.voice_text_output_enabled(),
                     )
                     .await?;
                 Ok(true)

@@ -155,3 +155,6 @@ mod speech_recovery;
 mod text_output;
 #[path = "realtime_tests/transcripts.rs"]
 mod transcripts;
+
+#[path = "realtime_tests/dictation.rs"]
+mod dictation;

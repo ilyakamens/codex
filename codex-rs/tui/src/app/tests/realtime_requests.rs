@@ -84,6 +84,52 @@ enum ItemEventKind {
 }
 
 #[tokio::test]
+async fn background_dictation_submits_once_to_its_original_thread() -> Result<()> {
+    let (mut app, _events, _ops) = make_test_app_with_channels().await;
+    let (mut server, requests, proxy) = start_recording_remote_app_server(&app.config).await?;
+    let started = server.start_thread(&app.config).await?;
+    let source = started.session.thread_id;
+    app.active_thread_id = Some(source);
+    app.chat_widget.handle_thread_session_quiet(started.session);
+    crate::chatwidget::activate_voice_for_thread(&mut app.chat_widget, source);
+
+    let (mut visible, _, _, _) = make_chatwidget_manual_with_sender().await;
+    let destination = ThreadId::new();
+    visible.handle_thread_session_quiet(test_thread_session(
+        destination,
+        app.config.cwd.to_path_buf(),
+    ));
+    app.replace_chat_widget(visible);
+    app.active_thread_id = Some(destination);
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+    for _ in 0..2 {
+        Box::pin(app.handle_event(
+            &mut tui,
+            &mut server,
+            AppEvent::Dictation {
+                thread_id: source,
+                attempt_id: 0,
+                event: crate::dictation::DictationEvent::Transcript {
+                    utterance_id: "utterance-1".into(),
+                    text: "Continue the original task.".into(),
+                },
+            },
+        ))
+        .await?;
+    }
+    let turns = recorded_params(&requests, "turn/start");
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0]["threadId"], source.to_string());
+    assert_eq!(turns[0]["input"][0]["text"], "Continue the original task.");
+    assert!(recorded_params(&requests, "thread/realtime/start").is_empty());
+    assert_eq!(app.active_thread_id, Some(destination));
+    assert_eq!(app.chat_widget.thread_id(), Some(destination));
+    server.shutdown().await?;
+    proxy.await??;
+    Ok(())
+}
+
+#[tokio::test]
 async fn remote_voice_start_routes_v3_offer_and_effective_preference() -> Result<()> {
     use super::session_lifecycle_requests::HistoryCapabilities;
     for (capabilities, expected_voice) in [
@@ -93,25 +139,14 @@ async fn remote_voice_start_routes_v3_offer_and_effective_preference() -> Result
         (HistoryCapabilities::VoiceCatalogCustom, Some("maple")),
         (HistoryCapabilities::ConfigReadUnknownVoice, None),
     ] {
-        check_remote_voice_start(capabilities, expected_voice, /*text_output*/ false).await?;
+        check_remote_voice_start(capabilities, expected_voice).await?;
     }
     Ok(())
-}
-
-#[tokio::test]
-async fn voice_text_output_start_preserves_audio_input_and_requests_normal_replies() -> Result<()> {
-    check_remote_voice_start(
-        super::session_lifecycle_requests::HistoryCapabilities::Current,
-        Some("juniper"),
-        /*text_output*/ true,
-    )
-    .await
 }
 
 async fn check_remote_voice_start(
     capabilities: super::session_lifecycle_requests::HistoryCapabilities,
     expected_voice: Option<&str>,
-    text_output: bool,
 ) -> Result<()> {
     let (mut app, _events, _ops) = make_test_app_with_channels().await;
     let (mut app_server, requests, proxy) =
@@ -164,10 +199,6 @@ async fn check_remote_voice_start(
     app.config.realtime.voice = Some(codex_protocol::protocol::RealtimeVoice::Maple);
     app.chat_widget
         .on_realtime_voice_saved(codex_protocol::protocol::RealtimeVoice::Maple);
-    if text_output {
-        app.chat_widget
-            .set_feature_enabled(Feature::VoiceTextOutput, true);
-    }
     Box::pin(app.handle_event(
         &mut tui,
         &mut app_server,
@@ -182,23 +213,8 @@ async fn check_remote_voice_start(
     assert_eq!(starts.len(), 1);
     let start = &starts[0];
     assert!(start["delegationAckFiller"].is_null());
-    if text_output {
-        assert!(
-            start["realtimeStartInstructions"]
-                .as_str()
-                .unwrap()
-                .contains("respond normally")
-        );
-        assert!(
-            start["prompt"]
-                .as_str()
-                .unwrap()
-                .contains("For every user utterance, immediately delegate")
-        );
-    } else {
-        assert!(start["realtimeStartInstructions"].is_null());
-        assert!(start["prompt"].is_null());
-    }
+    assert!(start["realtimeStartInstructions"].is_null());
+    assert!(start["prompt"].is_null());
     assert_eq!(
         serde_json::json!({
             "threadId": start["threadId"],

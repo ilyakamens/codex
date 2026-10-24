@@ -4995,6 +4995,7 @@ dependencies = [
  "codex-utils-sandbox-summary",
  "codex-utils-sleep-inhibitor",
  "codex-utils-string",
+ "codex-websocket-client",
  "codex-windows-sandbox",
  "codex-worktree",
  "color-eyre",

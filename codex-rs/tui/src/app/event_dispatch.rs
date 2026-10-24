@@ -2161,6 +2161,38 @@ impl App {
                     offer.handle.close();
                 }
             }
+            AppEvent::Dictation {
+                thread_id,
+                attempt_id,
+                event,
+            } => {
+                let parked = self
+                    .background_voice
+                    .as_ref()
+                    .is_some_and(|owner| owner.thread_id() == Some(thread_id));
+                if parked {
+                    let visible_thread = self.active_thread_id;
+                    if let Some(owner) = self.background_voice.as_mut() {
+                        std::mem::swap(&mut self.chat_widget, owner);
+                    }
+                    self.active_thread_id = Some(thread_id);
+                    // A parked widget suppresses its ordinary outbound events. Submit
+                    // its returned command on the original thread through the same path.
+                    if let Some(op) = self.chat_widget.on_dictation_event(attempt_id, event)
+                        && let Err(error) = self.submit_active_thread_op(app_server, op).await
+                    {
+                        self.chat_widget.add_realtime_error(format!(
+                            "Could not submit dictation: {error:#}"
+                        ));
+                    }
+                    if let Some(owner) = self.background_voice.as_mut() {
+                        std::mem::swap(&mut self.chat_widget, owner);
+                    }
+                    self.active_thread_id = visible_thread;
+                } else if self.chat_widget.thread_id() == Some(thread_id) {
+                    self.chat_widget.on_dictation_event(attempt_id, event);
+                }
+            }
             AppEvent::RealtimeWebrtcConnected {
                 thread_id,
                 attempt_id,

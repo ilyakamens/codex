@@ -135,6 +135,9 @@ def pump(duration):
 def wait_for(text):
     end = time.monotonic() + args.timeout
     while text not in terminal_text():
+        failure = re.search(r"Dictation failed:[^\n]+", terminal_text())
+        if failure:
+            raise RuntimeError(failure.group())
         if time.monotonic() > end:
             raise TimeoutError(f"Terminal did not show {text!r}")
         pump(0.2)
@@ -164,7 +167,7 @@ def events():
     return observed_events
 
 
-def backend_completed(answer_pattern):
+def rollout_events():
     global rollout
     if rollout is None:
         row = logs.execute(
@@ -173,14 +176,20 @@ def backend_completed(answer_pattern):
             (int(started_at), f"pid:{child.pid}:%"),
         ).fetchone()
         if row is None:
-            return False
+            return []
         rollout = next((codex_home / "sessions").rglob(f"*{row[0]}.jsonl"), None)
         if rollout is None:
-            return False
+            return []
+    records = []
     for line in rollout.read_text().splitlines(keepends=True):
         if not line.endswith("\n"):
             continue
-        event = json.loads(line)
+        records.append(json.loads(line))
+    return records
+
+
+def backend_completed(answer_pattern):
+    for event in rollout_events():
         payload = event.get("payload", {})
         if event["type"] == "event_msg" and payload.get("type") == "task_complete":
             reply = payload.get("last_agent_message") or ""
@@ -196,6 +205,35 @@ def result(transcript_patterns, answer_pattern, event_offset):
         for event in observed
         if event["type"] == "input_transcript.added"
     ).lower()
+    if not args.normal:
+        user_messages = [
+            " ".join(
+                content["text"]
+                for content in event["payload"]["item"]["content"]
+                if content["type"] == "text"
+            )
+            for event in rollout_events()
+            if event["type"] == "event_msg"
+            and event.get("payload", {}).get("type") == "item_completed"
+            and event["payload"].get("item", {}).get("type") == "UserMessage"
+        ]
+        matching = [
+            text
+            for text in user_messages
+            if all(
+                re.search(pattern, text, re.IGNORECASE)
+                for pattern in transcript_patterns
+            )
+        ]
+        return {
+            "transcript": len(matching) == 1,
+            "ordinary_user_message": len(matching) == 1
+            and "<realtime_delegation>" not in matching[0],
+            "backend_completed": backend_completed(answer_pattern),
+            "no_voice_session": len(events()) == 0,
+            "rendered_answer": re.search(answer_pattern, terminal_text(), re.IGNORECASE)
+            is not None,
+        }
     visible_text = " ".join(terminal_text().lower().split())
     direct_replies = [
         " ".join(event["turn"].get("transcript", "").lower().split())
@@ -224,10 +262,11 @@ def passed(outcome, reply_source):
         return False
     if args.normal:
         return outcome["direct_reply_visible"]
-    backend_reply = outcome["delegated"] and outcome["backend_completed"]
-    if reply_source == "backend":
-        return backend_reply
-    return backend_reply or outcome["direct_reply_visible"]
+    return (
+        outcome["ordinary_user_message"]
+        and outcome["backend_completed"]
+        and outcome["no_voice_session"]
+    )
 
 
 try:
@@ -243,13 +282,20 @@ try:
     send("/voice mute")
     wait_for("muted")
     end = time.monotonic() + args.timeout
-    while not any(event["type"] == "session.started" for event in events()):
+    while args.normal and not any(
+        event["type"] == "session.started" for event in events()
+    ):
         if time.monotonic() > end:
             raise TimeoutError(
                 "Voice transport connected but the realtime session did not start"
             )
         pump(0.2)
-    for question, transcript_patterns, answer_pattern, reply_source in cases:
+    for index, (
+        question,
+        transcript_patterns,
+        answer_pattern,
+        reply_source,
+    ) in enumerate(cases):
         subprocess.run(
             ["say", "-v", "Samantha", "-r", "145", "-o", str(speech), question],
             check=True,
@@ -263,14 +309,21 @@ try:
         end = time.monotonic() + args.timeout
         while True:
             pump(0.5)
-            if not muted and playback.poll() is not None:
+            if (args.normal or index > 0) and not muted and playback.poll() is not None:
                 send("/voice mute")
                 wait_for("muted")
                 muted = True
             outcome = result(transcript_patterns, answer_pattern, event_offset)
+            if not args.normal and index == 0 and not muted and outcome["transcript"]:
+                send("/voice mute")
+                wait_for("muted")
+                muted = True
             if passed(outcome, reply_source) or time.monotonic() > end:
                 break
         playback.wait(timeout=10)
+        if not muted:
+            send("/voice mute")
+            wait_for("muted")
         outcomes.append({"question": question, **outcome})
         print(json.dumps(outcome), flush=True)
         if not passed(outcome, reply_source):

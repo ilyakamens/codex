@@ -6,7 +6,9 @@ use super::*;
 impl ChatWidget {
     pub(crate) fn toggle_realtime_microphone(&mut self) {
         let muted = !self.realtime_conversation.microphone_muted;
-        if let Some(handle) = self.realtime_conversation.handle.as_ref() {
+        if let Some(handle) = self.realtime_conversation.dictation.as_ref() {
+            handle.set_muted(muted);
+        } else if let Some(handle) = self.realtime_conversation.handle.as_ref() {
             if let Err(error) = handle.set_microphone_muted(muted) {
                 let (message, cause) = match handle.take_error() {
                     Some((cause, error)) => {
@@ -136,6 +138,11 @@ impl ChatWidget {
     }
 
     pub(crate) fn refresh_realtime_microphone_level(&mut self) {
+        if let Some(handle) = self.realtime_conversation.dictation.as_ref() {
+            let peak = handle.take_peak();
+            self.refresh_realtime_audio_meters(Instant::now(), || (peak, 0));
+            return;
+        }
         if !matches!(
             self.realtime_conversation.phase,
             RealtimeConversationPhase::Starting | RealtimeConversationPhase::Active

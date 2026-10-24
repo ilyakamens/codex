@@ -1,15 +1,16 @@
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tomllib
-
+from pathlib import Path
 
 repo = Path(__file__).resolve().parent.parent
 installed_cli = shutil.which("codex")
 if installed_cli is None:
-    raise SystemExit("Install the matching Codex release first; its voice runtime is required.")
+    raise SystemExit(
+        "Install the matching Codex release first; its voice runtime is required."
+    )
 
 source = Path(installed_cli).resolve().parent.parent
 manifest = source / "codex-package.json"
@@ -18,10 +19,14 @@ workspace = tomllib.loads((repo / "codex-rs/Cargo.toml").read_text())
 version = workspace["workspace"]["package"]["version"]
 # Upstream main uses 0.0.0; only release builds have a matching package version.
 if version != "0.0.0" and metadata["version"] != version:
-    raise SystemExit(f"Expected the installed Codex {version} voice runtime, got {metadata['version']}.")
+    raise SystemExit(
+        f"Expected the installed Codex {version} voice runtime, got {metadata['version']}."
+    )
 
 voice_host = source / "codex-resources/voice/bin/codex-voice-host"
-build_commit = subprocess.check_output([voice_host, "--build-commit"], text=True).strip()
+build_commit = subprocess.check_output(
+    [voice_host, "--build-commit"], text=True
+).strip()
 # The voice helper requires the matching release's protocol build stamp.
 subprocess.run(
     ["cargo", "build", "-p", "codex-cli", "--bin", "codex"],
@@ -37,6 +42,19 @@ subprocess.run(
 
 destination = repo / "codex-rs/target/voice-text-output"
 (destination / "bin").mkdir(parents=True, exist_ok=True)
+capture = destination / "bin/codex-voice-capture"
+capture.unlink(missing_ok=True)
+subprocess.run(
+    [
+        "xcrun",
+        "swiftc",
+        "-O",
+        str(repo / "scripts/voice_capture.swift"),
+        "-o",
+        str(capture),
+    ],
+    check=True,
+)
 binary = destination / "bin/codex"
 # Fresh files avoid stale macOS code signatures when rebuilding executables.
 binary.unlink(missing_ok=True)

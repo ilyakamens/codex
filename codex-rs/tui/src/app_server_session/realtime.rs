@@ -9,7 +9,6 @@ use codex_app_server_protocol::ThreadRealtimeStartResponse;
 use codex_app_server_protocol::ThreadRealtimeStartTransport;
 use codex_app_server_protocol::ThreadRealtimeStopParams;
 use codex_app_server_protocol::ThreadRealtimeStopResponse;
-use codex_prompts::default_realtime_backend_prompt;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::RealtimeConversationVersion;
 use codex_protocol::protocol::RealtimeOutputModality;
@@ -24,7 +23,6 @@ impl AppServerSession {
         offer_sdp: String,
         model: Option<String>,
         voice: Option<RealtimeVoice>,
-        text_output: bool,
     ) -> Result<()> {
         let request_id = self.next_request_id();
         let _: ThreadRealtimeStartResponse = self
@@ -45,24 +43,9 @@ impl AppServerSession {
                     output_modality: RealtimeOutputModality::Audio,
                     include_startup_context: Some(false),
                     initial_items: None,
-                    realtime_start_instructions: text_output.then(|| {
-                        "The user is speaking and reads your responses directly in the terminal. \
-                         Treat realtime delegation input as the user's request and respond normally, \
-                         including progress updates, Markdown, and code when appropriate. \
-                         Your responses are displayed verbatim, not spoken or summarized by an intermediary."
-                            .to_string()
-                    }),
+                    realtime_start_instructions: None,
                     realtime_end_instructions: None,
-                    prompt: text_output.then(|| {
-                        Some(format!(
-                            "{}\n\n## Text output mode\n\n\
-                             For every user utterance, immediately delegate the request to the backend. \
-                             This includes simple questions, arithmetic, greetings, and conversation. \
-                             The backend answers the user in the terminal. Your job is to pass on the \
-                             request, even if you already know the answer.",
-                            default_realtime_backend_prompt()
-                        ))
-                    }),
+                    prompt: None,
                     realtime_session_id: None,
                     voice_session_id: None,
                     transport: Some(ThreadRealtimeStartTransport::Webrtc { sdp: offer_sdp }),

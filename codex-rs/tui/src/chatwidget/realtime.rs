@@ -19,6 +19,8 @@ use crate::app_event::AppEvent;
 use crate::app_event::RealtimeWebrtcStartupFailure;
 use crate::bottom_pane::VoiceStripPhase;
 use crate::bottom_pane::VoiceStripState;
+use crate::dictation::DictationEvent;
+use crate::dictation::DictationHandle;
 use crate::history_cell;
 use crate::motion::MotionMode;
 use codex_app_server_protocol::ThreadItem;
@@ -31,6 +33,7 @@ use codex_realtime_webrtc::RealtimeWebrtcSessionHandle;
 use codex_realtime_webrtc::StartedRealtimeWebrtcSession;
 use futures::future::AbortHandle;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
@@ -138,6 +141,8 @@ enum StartupRetry {
 
 #[derive(Default)]
 pub(super) struct RealtimeConversationUiState {
+    dictation: Option<DictationHandle>,
+    dictated_utterances: HashSet<String>,
     startup_retry: StartupRetry,
     pub(super) phase: RealtimeConversationPhase,
     recover_late_transcripts: bool,
@@ -251,6 +256,45 @@ fn realtime_input_fingerprint(input: &str) -> (usize, u64) {
 }
 
 impl ChatWidget {
+    pub(crate) fn on_dictation_event(
+        &mut self,
+        attempt_id: u64,
+        event: DictationEvent,
+    ) -> Option<AppCommand> {
+        if attempt_id != self.realtime_conversation.attempt_id
+            || !self.realtime_conversation_is_running()
+        {
+            return None;
+        }
+        match event {
+            DictationEvent::Ready => {
+                self.realtime_conversation.phase = RealtimeConversationPhase::Active;
+                self.realtime_conversation.active_since = Some(Instant::now());
+                self.update_realtime_footer();
+                self.refresh_terminal_title();
+                self.frame_requester
+                    .schedule_frame_in(MICROPHONE_METER_INTERVAL);
+                self.app_event_tx
+                    .send(AppEvent::RealtimeConversationStateChanged);
+            }
+            DictationEvent::Transcript { utterance_id, text } => {
+                if self
+                    .realtime_conversation
+                    .dictated_utterances
+                    .insert(utterance_id)
+                {
+                    return self.submit_user_message_as_plain_user_turn(text.into());
+                }
+            }
+            DictationEvent::Error(message) => {
+                self.reset_realtime_conversation();
+                self.add_realtime_error(message);
+            }
+        }
+        self.request_redraw();
+        None
+    }
+
     pub(crate) fn voice_text_output_enabled(&self) -> bool {
         self.config.features.enabled(Feature::VoiceTextOutput)
     }
@@ -319,6 +363,32 @@ impl ChatWidget {
         let Some(audio) = self.realtime_audio_settings() else {
             return;
         };
+        if self.voice_text_output_enabled() {
+            if !cfg!(target_os = "macos") {
+                self.add_error_message("Dictation currently requires macOS.".into());
+                return;
+            }
+            if audio.microphone_channel.is_some() {
+                self.add_error_message(
+                    "Dictation requires automatic microphone channel selection.".into(),
+                );
+                return;
+            }
+            self.realtime_conversation.attempt_id =
+                NEXT_REALTIME_ATTEMPT_ID.fetch_add(1, Ordering::Relaxed);
+            self.realtime_conversation.thread_id = Some(thread_id);
+            self.realtime_conversation.phase = RealtimeConversationPhase::Starting;
+            self.realtime_conversation.dictation = Some(DictationHandle::start(
+                self.config.clone(),
+                audio.microphone,
+                thread_id,
+                self.realtime_conversation.attempt_id,
+                self.app_event_tx.clone(),
+            ));
+            self.update_realtime_footer();
+            self.request_redraw();
+            return;
+        }
         self.realtime_conversation.recover_late_transcripts = false;
         self.realtime_conversation.attempt_id =
             NEXT_REALTIME_ATTEMPT_ID.fetch_add(1, Ordering::Relaxed);
@@ -357,6 +427,11 @@ impl ChatWidget {
     }
 
     pub(crate) fn stop_realtime_conversation(&mut self) {
+        if self.realtime_conversation.dictation.is_some() {
+            self.reset_realtime_conversation();
+            self.request_redraw();
+            return;
+        }
         self.realtime_conversation.startup_retry = StartupRetry::Used;
         if matches!(
             self.realtime_conversation.phase,
@@ -1827,6 +1902,7 @@ impl ChatWidget {
     }
 
     pub(crate) fn reset_realtime_conversation(&mut self) -> Option<ThreadId> {
+        self.realtime_conversation.dictation = None;
         if self.realtime_conversation_is_running() {
             self.app_event_tx
                 .send(AppEvent::RealtimeConversationStateChanged);

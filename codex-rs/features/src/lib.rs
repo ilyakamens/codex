@@ -438,7 +438,7 @@ pub enum Feature {
     StepModelSwitching,
     /// Removed compatibility flag. TUI voice availability follows platform support.
     RealtimeConversation,
-    /// Keep voice input while displaying normal text replies instead of speech.
+    /// Submit OpenAI dictation transcripts as normal user messages in the TUI.
     VoiceTextOutput,
     /// Prevent idle system sleep while a turn is actively running.
     PreventIdleSleep,
