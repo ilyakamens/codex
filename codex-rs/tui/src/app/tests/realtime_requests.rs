@@ -1136,8 +1136,11 @@ async fn completed_voice_caption_survives_repeated_thread_replacement() {
 
 #[tokio::test]
 async fn inactive_caption_precedes_later_buffered_turn_without_start_event() {
-    for include_delta in [false, true] {
+    for (include_delta, text_output) in [(false, false), (true, false), (false, true), (true, true)]
+    {
         let (mut app, _initial_events, _ops) = make_test_app_with_channels().await;
+        app.chat_widget
+            .set_feature_enabled(Feature::VoiceTextOutput, text_output);
         let source = ThreadId::new();
         app.retain_inactive_realtime_transcript(
             source,
@@ -1156,6 +1159,8 @@ async fn inactive_caption_precedes_later_buffered_turn_without_start_event() {
         let (widget, _, mut events, _) = make_chatwidget_manual_with_sender().await;
         app.active_thread_id = Some(source);
         app.replace_chat_widget(widget);
+        app.chat_widget
+            .set_feature_enabled(Feature::VoiceTextOutput, text_output);
         let mut snapshot = empty_thread_snapshot(&app, source);
         if include_delta {
             snapshot

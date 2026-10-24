@@ -136,12 +136,12 @@ impl App {
                     tokio::time::timeout(RATE_LIMIT_RESET_REQUEST_TIMEOUT, request)
                         .await
                         .map_err(|_| "account/rateLimits/read timed out in TUI".to_string())
-                        .and_then(|result| result.map_err(|err| err.to_string()))
+                        .and_then(|result| result.map_err(|err| format!("{err:#}")))
                 }
                 RateLimitRefreshOrigin::StartupPrefetch { .. }
                 | RateLimitRefreshOrigin::StatusCommand { .. }
                 | RateLimitRefreshOrigin::UsageMenu { .. } => {
-                    request.await.map_err(|err| err.to_string())
+                    request.await.map_err(|err| format!("{err:#}"))
                 }
             };
             app_event_tx.send(AppEvent::RateLimitsLoaded {

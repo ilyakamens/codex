@@ -27,22 +27,34 @@ parser.add_argument(
 parser.add_argument("--timeout", type=float, default=60)
 parser.add_argument("--microphone", default="MacBook Pro Microphone")
 parser.add_argument("--speaker", default="MacBook Pro Speakers")
+parser.add_argument("--cwd", type=Path)
+parser.add_argument("--check-weekly-limit", action="store_true")
+parser.add_argument("--status-only", action="store_true")
 args = parser.parse_args()
 repo = Path(__file__).resolve().parent.parent
 artifacts = repo / "codex-rs/target/voice-e2e"
 artifacts.mkdir(exist_ok=True)
 directory = Path(tempfile.mkdtemp(prefix="run-", dir=artifacts))
+working_directory = args.cwd.resolve() if args.cwd else directory
 speech = directory / "question.aiff"
 cases = [
     (
-        "What is seventeen plus twenty six? Please answer with just the number.",
+        "This is a test, please respond.",
+        (r"test", r"respond"),
+        r"test|clear|hear|heard|ready|received|yes|here",
+        "either",
+    ),
+    (
+        "Run Python to calculate seventeen plus twenty six. Show just the result.",
         (r"seventeen|\b17\b", r"twenty[ -]?six|\b26\b"),
         r"\b43\b|forty[ -]?three",
+        "backend",
     ),
     (
         "What is twelve times five? Please answer with just the number.",
         (r"twelve|\b12\b", r"five|\b5\b"),
         r"\b60\b|sixty",
+        "either",
     ),
 ]
 command = [
@@ -55,9 +67,9 @@ command = [
     "--ask-for-approval",
     "never",
     "-C",
-    str(directory),
+    str(working_directory),
     "-c",
-    f'projects.{json.dumps(str(directory))}.trust_level="trusted"',
+    f'projects.{json.dumps(str(working_directory))}.trust_level="trusted"',
     "-c",
     f"audio.microphone={json.dumps(args.microphone)}",
     "-c",
@@ -184,28 +196,48 @@ def result(transcript_patterns, answer_pattern, event_offset):
         for event in observed
         if event["type"] == "input_transcript.added"
     ).lower()
+    visible_text = " ".join(terminal_text().lower().split())
+    direct_replies = [
+        " ".join(event["turn"].get("transcript", "").lower().split())
+        for event in observed
+        if event["type"] == "turn.done" and event["turn"]["role"] == "assistant"
+    ]
     return {
         "transcript": all(
             re.search(pattern, transcript) for pattern in transcript_patterns
         ),
         "delegated": any(event["type"] == "delegation.created" for event in observed),
         "backend_completed": backend_completed(answer_pattern),
+        "direct_reply_visible": any(
+            reply
+            and re.search(answer_pattern, reply, re.IGNORECASE)
+            and reply in visible_text
+            for reply in direct_replies
+        ),
         "rendered_answer": re.search(answer_pattern, terminal_text(), re.IGNORECASE)
         is not None,
     }
 
 
-def passed(outcome):
-    return (
-        outcome["transcript"]
-        and outcome["rendered_answer"]
-        and (args.normal or (outcome["delegated"] and outcome["backend_completed"]))
-    )
+def passed(outcome, reply_source):
+    if not outcome["transcript"] or not outcome["rendered_answer"]:
+        return False
+    if args.normal:
+        return outcome["direct_reply_visible"]
+    backend_reply = outcome["delegated"] and outcome["backend_completed"]
+    if reply_source == "backend":
+        return backend_reply
+    return backend_reply or outcome["direct_reply_visible"]
 
 
 try:
     print(f"Artifacts: {directory}", flush=True)
     wait_for("Ask Codex to do anything")
+    if args.check_weekly_limit or args.status_only:
+        wait_for("weekly")
+        print("Weekly usage is visible before the first turn.", flush=True)
+    if args.status_only:
+        raise SystemExit(0)
     send("/voice")
     wait_for("listening")
     send("/voice mute")
@@ -217,7 +249,7 @@ try:
                 "Voice transport connected but the realtime session did not start"
             )
         pump(0.2)
-    for question, transcript_patterns, answer_pattern in cases:
+    for question, transcript_patterns, answer_pattern, reply_source in cases:
         subprocess.run(
             ["say", "-v", "Samantha", "-r", "145", "-o", str(speech), question],
             check=True,
@@ -236,13 +268,15 @@ try:
                 wait_for("muted")
                 muted = True
             outcome = result(transcript_patterns, answer_pattern, event_offset)
-            if passed(outcome) or time.monotonic() > end:
+            if passed(outcome, reply_source) or time.monotonic() > end:
                 break
         playback.wait(timeout=10)
         outcomes.append({"question": question, **outcome})
         print(json.dumps(outcome), flush=True)
-        if not passed(outcome):
-            raise AssertionError("Spoken request did not reach a visible answer")
+        if not passed(outcome, reply_source):
+            raise AssertionError(
+                f"Spoken request did not reach a visible {reply_source} reply"
+            )
     print("Live voice E2E passed.", flush=True)
 finally:
     (directory / "terminal.txt").write_text(terminal_text())

@@ -167,9 +167,6 @@ impl App {
         if !matches!(role, "user" | "assistant") {
             return;
         }
-        if self.chat_widget.voice_text_output_enabled() && role == "assistant" {
-            return;
-        }
         self.note_realtime_replay_thread(thread_id);
         let records = self
             .pending_realtime_transcript_replay

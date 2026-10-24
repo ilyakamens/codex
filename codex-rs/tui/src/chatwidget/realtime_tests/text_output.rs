@@ -94,21 +94,24 @@ async fn voice_text_output_streams_updates_and_final_answer_without_speech() {
 }
 
 #[tokio::test]
-async fn voice_text_output_keeps_user_captions_and_hides_voice_service_replies() {
+async fn voice_text_output_shows_direct_replies_without_a_handoff() {
     let (mut chat, _sender, mut events, _ops) = make_chatwidget_manual_with_sender().await;
     chat.config
         .features
         .enable(Feature::VoiceTextOutput)
         .unwrap();
     activate_voice(&mut chat);
-    chat.on_realtime_transcript_delta("user".into(), "Spoken request".into());
-    chat.on_realtime_transcript_done("user".into(), "Spoken request".into());
-    chat.on_realtime_transcript_delta("assistant".into(), "Voice acknowledgment".into());
-    chat.on_realtime_transcript_done("assistant".into(), "Voice acknowledgment".into());
+    chat.on_realtime_transcript_delta("user".into(), "This is a test, please respond".into());
+    chat.on_realtime_transcript_done("user".into(), "This is a test, please respond".into());
+    chat.on_realtime_transcript_delta("assistant".into(), "Test received loud and clear.".into());
+    chat.on_realtime_transcript_done("assistant".into(), "Test received loud and clear.".into());
     commit_realtime_history_events(&mut chat, &mut events);
     let rendered = take_history(&mut events);
-    assert_eq!(rendered.matches("Spoken request").count(), 1);
-    assert!(!rendered.contains("Voice acknowledgment"));
+    assert_eq!(
+        rendered.matches("This is a test, please respond").count(),
+        1
+    );
+    assert_eq!(rendered.matches("Test received loud and clear.").count(), 1);
     assert!(chat.realtime_microphone_is_listening());
 }
 

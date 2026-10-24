@@ -1285,9 +1285,6 @@ impl ChatWidget {
     }
 
     pub(super) fn on_realtime_transcript_delta(&mut self, role: String, delta: String) {
-        if self.voice_text_output_enabled() && role == "assistant" {
-            return;
-        }
         if self.realtime_conversation.phase == RealtimeConversationPhase::Inactive
             && !self.realtime_conversation.recover_late_transcripts
         {
@@ -1431,9 +1428,6 @@ impl ChatWidget {
     }
 
     pub(super) fn on_realtime_transcript_done(&mut self, role: String, mut text: String) {
-        if self.voice_text_output_enabled() && role == "assistant" {
-            return;
-        }
         if matches!(
             self.realtime_conversation.phase,
             RealtimeConversationPhase::Inactive | RealtimeConversationPhase::Stopping
